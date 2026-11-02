@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LCK 戰隊圖鑑</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 48px;
+      background: #101119;
+      color: #f4f4f6;
+      font-family: Arial, "Noto Sans TC", sans-serif;
+    }
+
+    main {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 24px;
+      color: #f2c66d;
+      font-size: clamp(36px, 5vw, 64px);
+    }
+
+    .intro {
+      margin: 0 0 56px;
+      font-size: clamp(18px, 2vw, 28px);
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+    }
+
+    .team-card {
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 22px 24px;
+      border: 2px solid #343846;
+      border-radius: 24px;
+      background: #1b1e29;
+      color: #f4f4f6;
+      font-size: 25px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .team-card:hover {
+      transform: translateY(-4px);
+      border-color: #f2c66d;
+    }
+
+    .team-logo-frame {
+      width: 64px;
+      height: 64px;
+      flex: 0 0 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+    }
+
+    .team-logo {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 28px 18px;
+      }
+
+      .intro {
+        margin-bottom: 32px;
+      }
+
+      .team-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .team-card {
+        min-height: 100px;
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>LCK 戰隊圖鑑</h1>
+    <p class="intro">選一支隊伍，開始認識戰隊與選手。</p>
+
+    <section class="team-grid">
+      {% for team in teams %}
+        <a
+          class="team-card"
+          href="{{ url_for('team_detail', slug=team.slug) }}"
+        >
+          <div class="team-logo-frame">
+            <img
+              class="team-logo"
+              src="{{ url_for('static', filename='images/' ~ team.logo) }}"
+              alt="{{ team.name }} 隊徽"
+            >
+          </div>
+          <span>{{ team.name }}</span>
+        </a>
+      {% endfor %}
+    </section>
+  </main>
+</body>
+</html>

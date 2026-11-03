@@ -1,6 +1,22 @@
+import os
 import random
+import psycopg2
 
-from flask import Flask, abort, render_template, request, url_for
+from flask import Flask, abort, jsonify, render_template, request, url_for
+
+def get_db_connection():
+    database_url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
+
+    if not database_url:
+        raise RuntimeError("尚未設定 DATABASE_URL")
+
+    return psycopg2.connect(
+        database_url,
+        sslmode="require",
+        connect_timeout=10,
+    )
+
+from flask import Flask, abort, jsonify, render_template, request, url_for
 
 app = Flask(__name__)
 
@@ -14,62 +30,24 @@ def roster(*names):
 
 
 PLAYER_LANES = {
-    "doran": "top",
-    "kiin": "top",
-    "zeus": "top",
-    "siwoo": "top",
-    "perfect": "top",
-    "frog": "top",
-    "kingen": "top",
-    "clear": "top",
-    "dudu": "top",
-    "casting": "top",
-
-    "oner": "jungle",
-    "canyon": "jungle",
-    "kanavi": "jungle",
-    "lucid": "jungle",
-    "cuzz": "jungle",
-    "willer": "jungle",
-    "sponge": "jungle",
-    "raptor": "jungle",
-    "pyosik": "jungle",
+    "doran": "top", "kiin": "top", "zeus": "top", "siwoo": "top",
+    "perfect": "top", "frog": "top", "kingen": "top", "clear": "top",
+    "dudu": "top", "casting": "top",
+    "oner": "jungle", "canyon": "jungle", "kanavi": "jungle",
+    "lucid": "jungle", "cuzz": "jungle", "willer": "jungle",
+    "sponge": "jungle", "raptor": "jungle", "pyosik": "jungle",
     "gideon": "jungle",
-
-    "faker": "mid",
-    "chovy": "mid",
-    "zeka": "mid",
-    "showmaker": "mid",
-    "bdd": "mid",
-    "ucal": "mid",
-    "scout": "mid",
-    "vicla": "mid",
-    "clozer": "mid",
-    "roamer": "mid",
-
-    "peyz": "bot",
-    "ruler": "bot",
-    "gumayusi": "bot",
-    "smash": "bot",
-    "jiwoo": "bot",
-    "aiming": "bot",
-    "diable": "bot",
-    "taeyoon": "bot",
-    "deokdam": "bot",
-    "teddy": "bot",
-
-    "keria": "support",
-    "duro": "support",
-    "delight": "support",
-    "career": "support",
-    "effort": "support",
-    "andil": "support",
-    "lehends": "support",
-    "kellin": "support",
-    "life": "support",
+    "faker": "mid", "chovy": "mid", "zeka": "mid",
+    "showmaker": "mid", "bdd": "mid", "ucal": "mid", "scout": "mid",
+    "vicla": "mid", "clozer": "mid", "roamer": "mid",
+    "peyz": "bot", "ruler": "bot", "gumayusi": "bot", "smash": "bot",
+    "jiwoo": "bot", "aiming": "bot", "diable": "bot", "taeyoon": "bot",
+    "deokdam": "bot", "teddy": "bot",
+    "keria": "support", "duro": "support", "delight": "support",
+    "career": "support", "effort": "support", "andil": "support",
+    "lehends": "support", "kellin": "support", "life": "support",
     "namgung": "support",
 }
-
 
 LANE_FILES = {
     "top": "images/lane/top.jpg",
@@ -165,7 +143,10 @@ teams = [
         "name": "KRX",
         "logo": "krx.png",
         "founded": "2012（隊伍沿革起點）",
-        "name_history": "Incredible Miracle → Longzhu Gaming → Kingzone DragonX → DragonX／DRX → Kiwoom DRX（2026；代碼 KRX）",
+        "name_history": (
+            "Incredible Miracle → Longzhu Gaming → Kingzone DragonX "
+            "→ DragonX／DRX → Kiwoom DRX（2026；代碼 KRX）"
+        ),
         "intro": "隊史代表作是 2022 年世界賽冠軍；隊伍沿革中也曾多次奪下 LCK 冠軍。",
         "awards": [
             "LCK 冠軍：2017 夏、2018 春（前身隊伍）",
@@ -205,7 +186,10 @@ teams = [
         "name": "DNS",
         "logo": "dns.webp",
         "founded": "2014（前身 Anarchy）",
-        "name_history": "Anarchy → Afreeca Freecs → Kwangdong Freecs → DN Freecs → DN SOOPers",
+        "name_history": (
+            "Anarchy → Afreeca Freecs → Kwangdong Freecs "
+            "→ DN Freecs → DN SOOPers"
+        ),
         "intro": "有多年 LCK 隊史，沿革中的不同隊名時期曾在 KeSPA Cup 奪冠。",
         "awards": [
             "KeSPA Cup 冠軍：2019（Afreeca Freecs）、2026（DN SOOPers）",
@@ -217,7 +201,10 @@ teams = [
         "name": "BRO",
         "logo": "bro.png",
         "founded": "2018（以目前 LCK 隊伍沿革計）",
-        "name_history": "Kongdoo Monster → Brion Blade → hyFresh Blade → Fredit BRION → BRION → OKSavingsBank BRION → Hanjin BRION",
+        "name_history": (
+            "Kongdoo Monster → Brion Blade → hyFresh Blade → Fredit BRION "
+            "→ BRION → OKSavingsBank BRION → Hanjin BRION"
+        ),
         "intro": "曾被視為挑戰者隊伍，2024 年 KeSPA Cup 冠軍是隊伍的重要里程碑。",
         "awards": [
             "KeSPA Cup 冠軍：2024（OKSavingsBank BRION）",
@@ -227,19 +214,134 @@ teams = [
 ]
 
 
-@app.route("/", methods=["GET", "POST"])
-def draw_page():
-    draw_candidates = []
+def get_database_url():
+    """支援 Render 環境變數 DATABASE_URL，也相容 DB_URL。"""
+    return os.environ.get("DATABASE_URL") or os.environ.get("DB_URL")
 
+
+def get_db_connection():
+    database_url = get_database_url()
+    if not database_url:
+        raise RuntimeError("找不到 DATABASE_URL，請設定 PostgreSQL 連線網址。")
+    return psycopg2.connect(database_url, connect_timeout=10)
+
+
+def ensure_history_table(cursor):
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS draw_history (
+            id BIGSERIAL PRIMARY KEY,
+            user_name TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            team_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            drawn_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+
+
+def ensure_players_table(cursor):
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS players (
+            id BIGSERIAL PRIMARY KEY,
+            team_slug TEXT NOT NULL,
+            team_name TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            position TEXT NOT NULL,
+            photo TEXT NOT NULL,
+            search_vector TSVECTOR GENERATED ALWAYS AS (
+                setweight(
+                    to_tsvector(
+                        'simple'::regconfig,
+                        COALESCE(player_name, '')
+                    ),
+                    'A'
+                )
+                ||
+                setweight(
+                    to_tsvector(
+                        'simple'::regconfig,
+                        COALESCE(team_name, '')
+                    ),
+                    'B'
+                )
+                ||
+                setweight(
+                    to_tsvector(
+                        'simple'::regconfig,
+                        COALESCE(position, '')
+                    ),
+                    'C'
+                )
+            ) STORED,
+            UNIQUE (team_slug, player_name)
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS players_search_vector_idx
+        ON players USING GIN (search_vector)
+    """)
+
+
+def sync_players_to_database(cursor):
+    """將 app.py 的名單同步進資料庫，重複執行會更新既有資料。"""
     for team in teams:
         for player in team["players"]:
             photo_name = player["photo"].rsplit(".", 1)[0].lower()
             position = PLAYER_LANES.get(photo_name)
-
             if not position:
                 continue
 
-            draw_candidates.append({
+            cursor.execute("""
+                INSERT INTO players
+                    (team_slug, team_name, player_name, position, photo)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (team_slug, player_name)
+                DO UPDATE SET
+                    team_name = EXCLUDED.team_name,
+                    position = EXCLUDED.position,
+                    photo = EXCLUDED.photo
+            """, (
+                team["slug"],
+                team["name"],
+                player["name"],
+                position,
+                player["photo"],
+            ))
+
+
+def save_draw(user_name, player):
+    connection = get_db_connection()
+    try:
+        with connection:
+            with connection.cursor() as cursor:
+                ensure_history_table(cursor)
+                cursor.execute("""
+                    INSERT INTO draw_history
+                        (user_name, player_name, team_name, position)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, drawn_at
+                """, (
+                    user_name,
+                    player["name"],
+                    player["team"],
+                    player["position_label"],
+                ))
+                row = cursor.fetchone()
+                return {"id": row[0], "drawn_at": row[1].isoformat()}
+    finally:
+        connection.close()
+
+
+def get_draw_candidates():
+    candidates = []
+    for team in teams:
+        for player in team["players"]:
+            photo_name = player["photo"].rsplit(".", 1)[0].lower()
+            position = PLAYER_LANES.get(photo_name)
+            if not position:
+                continue
+
+            candidates.append({
                 "name": player["name"],
                 "team": team["name"],
                 "team_slug": team["slug"],
@@ -259,22 +361,192 @@ def draw_page():
                     filename=LANE_FILES[position],
                 ),
             })
+    return candidates
 
+
+@app.route("/", methods=["GET", "POST"])
+def draw_page():
+    draw_candidates = get_draw_candidates()
+    player_name = request.form.get("player_name", "").strip()
     drawn_player = None
+    error = None
 
-    if request.method == "POST" and draw_candidates:
-        drawn_player = random.choice(draw_candidates)
+    if request.method == "POST":
+        if not player_name:
+            error = "請輸入你的名字。"
+        elif not draw_candidates:
+            error = "目前沒有可抽卡的選手資料。"
+        else:
+            drawn_player = random.choice(draw_candidates)
+            try:
+                save_draw(player_name, drawn_player)
+            except (psycopg2.Error, RuntimeError):
+                app.logger.exception("儲存抽卡紀錄失敗")
+                drawn_player = None
+                error = "資料庫連線失敗，請檢查 DATABASE_URL 設定。"
 
     card_back_url = url_for(
         "static",
         filename="images/gacha/card-back.png",
     )
-
     return render_template(
         "draw.html",
         drawn_player=drawn_player,
         card_back_url=card_back_url,
+        player_name=player_name,
+        error=error,
     )
+
+
+@app.route("/api/draw", methods=["POST"])
+def api_draw():
+    """API 1：抽選手，並將抽卡結果寫入 PostgreSQL。"""
+    data = request.get_json(silent=True) or {}
+    user_name = (data.get("name") or data.get("player_name") or "").strip()
+    if not user_name:
+        return jsonify({
+            "error": "請提供姓名，例如：{\"name\": \"Yvonne\"}"
+        }), 400
+
+    candidates = get_draw_candidates()
+    if not candidates:
+        return jsonify({"error": "目前沒有可抽卡的選手資料。"}), 503
+
+    player = random.choice(candidates)
+    try:
+        saved_record = save_draw(user_name, player)
+    except (psycopg2.Error, RuntimeError):
+        app.logger.exception("API 抽卡紀錄寫入資料庫失敗")
+        return jsonify({"error": "資料庫連線失敗，請檢查 DATABASE_URL。"}), 503
+
+    return jsonify({
+        "message": "抽卡成功",
+        "user_name": user_name,
+        "player": player,
+        "record": saved_record,
+    }), 201
+
+
+@app.route("/api/history", methods=["GET"])
+def api_history():
+    """API 2：使用 SQL 查詢指定姓名的抽卡紀錄。"""
+    user_name = (
+        request.args.get("name") or request.args.get("user_name") or ""
+    ).strip()
+    if not user_name:
+        return jsonify({
+            "error": "請提供姓名，例如：/api/history?name=Yvonne"
+        }), 400
+
+    try:
+        limit = int(request.args.get("limit", 20))
+    except ValueError:
+        return jsonify({"error": "limit 必須是數字。"}), 400
+    limit = max(1, min(limit, 100))
+
+    connection = None
+    try:
+        connection = get_db_connection()
+        with connection:
+            with connection.cursor() as cursor:
+                ensure_history_table(cursor)
+                cursor.execute("""
+                    SELECT id, user_name, player_name, team_name, position, drawn_at
+                    FROM draw_history
+                    WHERE user_name = %s
+                    ORDER BY drawn_at DESC
+                    LIMIT %s
+                """, (user_name, limit))
+                rows = cursor.fetchall()
+    except (psycopg2.Error, RuntimeError):
+        app.logger.exception("查詢抽卡紀錄失敗")
+        return jsonify({"error": "資料庫連線失敗，請檢查 DATABASE_URL。"}), 503
+    finally:
+        if connection is not None:
+            connection.close()
+
+    history = [
+        {
+            "id": row[0],
+            "user_name": row[1],
+            "player_name": row[2],
+            "team_name": row[3],
+            "position": row[4],
+            "drawn_at": row[5].isoformat(),
+        }
+        for row in rows
+    ]
+    return jsonify({
+        "user_name": user_name,
+        "count": len(history),
+        "history": history,
+    })
+
+
+@app.route("/api/players/search", methods=["GET"])
+def api_player_search():
+    """API 3：使用 PostgreSQL 全文搜尋選手、隊伍或位置。"""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({
+            "error": "請提供搜尋文字，例如：/api/players/search?q=faker"
+        }), 400
+
+    pattern = f"%{query}%"
+    connection = None
+    try:
+        connection = get_db_connection()
+        with connection:
+            with connection.cursor() as cursor:
+                ensure_players_table(cursor)
+                sync_players_to_database(cursor)
+                cursor.execute("""
+                    SELECT
+                        team_slug,
+                        team_name,
+                        player_name,
+                        position,
+                        photo,
+                        ts_rank(
+                            search_vector,
+                            plainto_tsquery('simple', %s)
+                        ) AS rank
+                    FROM players
+                    WHERE search_vector @@ plainto_tsquery('simple', %s)
+                       OR player_name ILIKE %s
+                       OR team_name ILIKE %s
+                       OR position ILIKE %s
+                    ORDER BY rank DESC, team_name, player_name
+                    LIMIT 50
+                """, (query, query, pattern, pattern, pattern))
+                rows = cursor.fetchall()
+    except (psycopg2.Error, RuntimeError):
+        app.logger.exception("選手搜尋資料庫查詢失敗")
+        return jsonify({"error": "資料庫連線失敗，請檢查 DATABASE_URL。"}), 503
+    finally:
+        if connection is not None:
+            connection.close()
+
+    results = []
+    for row in rows:
+        team_slug, team_name, player_name, position, photo, _rank = row
+        results.append({
+            "team": team_name,
+            "team_slug": team_slug,
+            "player": player_name,
+            "position": position,
+            "position_label": LANE_LABELS.get(position, position),
+            "photo_url": url_for(
+                "static",
+                filename=f"images/players/{team_slug}/{photo}",
+            ),
+        })
+
+    return jsonify({
+        "query": query,
+        "count": len(results),
+        "results": results,
+    })
 
 
 @app.route("/teams")
@@ -288,7 +560,6 @@ def team_detail(slug):
         (team for team in teams if team["slug"] == slug),
         None,
     )
-
     if original_team is None:
         abort(404)
 
@@ -299,7 +570,6 @@ def team_detail(slug):
         player_copy = dict(player)
         photo_name = player_copy["photo"].rsplit(".", 1)[0].lower()
         position = PLAYER_LANES.get(photo_name)
-
         player_copy["position"] = position
         player_copy["position_label"] = LANE_LABELS.get(position, "")
 
